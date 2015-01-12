@@ -1,4 +1,4 @@
-package ip.playground;
+package ip.c0d.ippg;
 
 import android.app.*;
 import android.content.*;
@@ -6,7 +6,6 @@ import android.content.res.*;
 import android.os.*;
 
 import jni.*;
-import org.opencv.core.*;
 
 import java.lang.*;
 

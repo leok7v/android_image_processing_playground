@@ -1,4 +1,4 @@
-package ip.playground;
+package ip.c0d.ippg;
 
 import android.graphics.*;
 import android.hardware.Camera;
@@ -130,7 +130,7 @@ public class SurfaceCamera {
             camera.setParameters(p);
             return true;
         } catch (Throwable t) {
-//          trace(m + t.getMessage()); /* can be ignored for now */
+            trace(m + t.getMessage()); /* can be ignored for now */
             return false;
         }
     }

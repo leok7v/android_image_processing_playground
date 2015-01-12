@@ -1,8 +1,7 @@
-package ip.playground;
+package ip.c0d.ippg;
 
 import android.content.*;
 import android.graphics.*;
-import android.view.*;
 import com.ortiz.touch.*;
 import jni.*;
 import static misc.util.*;

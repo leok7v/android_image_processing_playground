@@ -1,4 +1,4 @@
-package ip.playground;
+package ip.c0d.ippg;
 
 import android.hardware.*;
 import android.os.Bundle;
