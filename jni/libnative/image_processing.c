@@ -28,8 +28,8 @@ static void threshold8u_neon(byte* input, int stride, int w, int h, byte value, 
 static void threshold8u_x4(byte* input, int stride, int w, int h, byte value, byte set, byte* output);
 static void threshold8u_x1(byte* input, int stride, int w, int h, byte value, byte set, byte* output);
 
-static void dilate8unz_r0(byte* input, int stride, int w, int h, byte set, byte* output);
-static void dilate8unz_r1(byte* input, int stride, int w, int h, byte set, byte* output);
+static void dilate8unz_r1_simple(byte* input, int stride, int w, int h, byte set, byte* output);
+static void dilate8unz_r1_unrolled(byte* input, int stride, int w, int h, byte set, byte* output);
 static void dilate8unz_simple(byte* input, int stride, int w, int h, int radius, byte set, byte* output);
 static void dilate8unz_unrolled(byte* input, int stride, int w, int h, int radius, byte set, byte* output);
 
@@ -78,21 +78,22 @@ void ip_dilate8unz(void* input, int stride, int w, int h, int radius, unsigned c
     byte verify[h * stride];
     dilate8unz_simple(input, stride, w, h, radius, set, verify);
     if (radius == 1) {
-        dilate8unz_r0(input, stride, w, h, set, output);
+        dilate8unz_r1_simple(input, stride, w, h, set, output);
         check(input, stride, w, h, output, verify);
-        assertion(memcmp(verify, output, h * stride) == 0, "dilate8unz_r0 != dilate8unz_r0");
-        dilate8unz_r1(input, stride, w, h, set, output);
+        assertion(memcmp(verify, output, h * stride) == 0, "dilate8unz_r1_simple != dilate8unz_simple");
+        dilate8unz_r1_unrolled(input, stride, w, h, set, output);
         check(input, stride, w, h, output, verify);
-        assertion(memcmp(verify, output, h * stride) == 0, "dilate8unz_r1 != dilate8unz_simple");
+        assertion(memcmp(verify, output, h * stride) == 0, "dilate8unz_r1_unrolled != dilate8unz_simple");
         dilate8unz_unrolled(input, stride, w, h, radius, set, output);
         check(input, stride, w, h, output, verify);
-        assertion(memcmp(verify, output, h * stride) == 0, "dilate8unz_r1 != dilate8unz_unrolled");
+        assertion(memcmp(verify, output, h * stride) == 0, "dilate8unz_unrolled != dilate8unz_simple");
     } else {
         dilate8unz_simple(input, stride, w, h, radius, set, output);
     }
 }
 
 static void threshold8u_x1(byte* input, int stride, int w, int h, byte value, byte set, byte* output) {
+    // 0.000492 sec
     begin
     // opencv uses "vcgtq_u8" instead of "vcgteq_u8" (which would be more logical) thus we have to comply :(
     assertion(1 <= value && value <= 253, "value=%d is not in [1..254] range");
@@ -120,7 +121,7 @@ static void threshold8u_x1(byte* input, int stride, int w, int h, byte value, by
 }
 
 static void threshold8u_x4(byte* input, int stride, int w, int h, byte value, byte set, byte* output) {
-    begin
+    begin // 0.000379 sec
     assertion(1 <= value && value <= 253, "value=%d is not in [1..254] range");
     assertion(w % 4 == 0, "expected w=%d to be divisible by 4", w);
     assertion(stride % 4 == 0, "expected stride=%d to be divisible by 4", stride);
@@ -159,7 +160,7 @@ static void threshold8u_x4(byte* input, int stride, int w, int h, byte value, by
 static void threshold8u_neon(byte* input, int stride, int w, int h, byte value, byte set, byte* output) {
     // see: http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0491h/BABEHCCG.html
     // best time seen 100 microseconds for 640x480
-    begin
+    begin // 0.000096 sec
     assertion(w % 16 == 0, "w=%d must be divisible by 16", w);
     const int N = 10;
     for (int k = 0; k <= N; k++) {
@@ -174,12 +175,14 @@ static void threshold8u_neon(byte* input, int stride, int w, int h, byte value, 
             while (s < e) {
                 // opencv uses "vcgtq_u8" instead of "vcgteq_u8" (which would be more logical) thus we have to comply :(
                 vst1q_u8(d, vandq_u8(vcgtq_u8(vld1q_u8(s), v_thresh), v_max));
+/*
                 for (int i = 0; i < 16; i++) {
                     int x = (s - p) + i;
                     assertion((input[y * stride + x] > value) == (output[y * stride + x] == set),
                                "input[y=%d, x=%d %d]=%3d output[]=%3d", y, x, y * stride + x, input[y * stride + x], output[y * stride + x]
                               );
                 }
+*/
                 d += 16;
                 s += 16;
             }
@@ -190,8 +193,8 @@ static void threshold8u_neon(byte* input, int stride, int w, int h, byte value, 
     end(N);
 }
 
-static void dilate8unz_r0(byte* input, int stride, int w, int h, byte set, byte* output) {
-    //
+static void dilate8unz_r1_simple(byte* input, int stride, int w, int h, byte set, byte* output) {
+    // 640x480 0.001092 sec
     assert(set != 0);
     begin
     byte line[w];
@@ -219,7 +222,8 @@ static void dilate8unz_r0(byte* input, int stride, int w, int h, byte set, byte*
     end(1);
 }
 
-static void dilate8unz_r1(byte* input, int stride, int w, int h, byte set, byte* output) {
+static void dilate8unz_r1_unrolled(byte* input, int stride, int w, int h, byte set, byte* output) {
+    // 640x480 0.001254 sec
     assert(set != 0);
     begin
     byte line[w];
@@ -263,7 +267,7 @@ static void dilate8unz_r1(byte* input, int stride, int w, int h, byte set, byte*
 }
 
 static void dilate8unz_unrolled(byte* input, int stride, int w, int h, int radius, byte set, byte* output) {
-    begin
+    begin // 0.003534 sec
     assertion(1 <= radius && radius <= 254, "k=%d is out of [1..254] range");
     assertion(1 <= set && set <= 255, "value of \"set\"=%d is out of [1..255] range");
     byte* img = input;
@@ -277,45 +281,32 @@ static void dilate8unz_unrolled(byte* input, int stride, int w, int h, int radiu
     }
     int row = stride;
     for (int y = 1; y < h; y++) {
-//      int row1 = y * stride;
-//      assertion(row1 == row, "row1=%d row=%d y=%d", row1, row, y);
         md[row] = img[row] != 0 ? 0 : min(farthest, md[row - stride] + 1);
         int pos = row;
         for (int x = 1; x < w; x++) {
             pos++;
-//          int pos1 = row + x;
-//          assertion(pos1 == pos, "pos1=%d pos=%d x=%d y=%d", row1, row, x, y);
             md[pos] = img[pos] != 0 ? 0 : min(min(farthest, md[pos - stride] + 1), md[pos - 1] + 1);
         }
         row += stride;
     }
-//  assertion(row == h * stride, "raw=%d h * stride=%d", row, h * stride);
     // last row:
     row -= stride;
-//  assertion(row == (h - 1) * stride, "raw=%d (h - 1) * stride=%d", row, (h - 1) * stride);
     ////////////////////////////////////////////// bottom right to top left: ///////////////////////////////
     int pos = row + w - 1;
     out[pos] = md[pos] <= radius ? set : 0;
-//  assertion(pos == (h - 1) * stride + w - 1, "pos=%d ((h - 1) * stride + w - 1)=%d", pos, (h - 1) * stride + w - 1);
     for (int x = w - 2; x >= 0; x--) {
         pos--;
-//      assertion(pos == (h - 1) * stride + x, "raw=%d (h - 1) * stride=%d row=%d x = %d", pos, (h - 1) * stride + x, row, x);
         int was = md[pos];
         int r = md[pos] = min(md[pos], md[pos + 1] + 1);
         out[pos] = r <= radius ? set : 0;
     }
     for (int y = h - 2; y >= 0; y--) {
         row -= stride;
-//      int row1 = y * stride;
-//      assertion(row1 == row, "row1=%d row=%d y=%d", row1, row, y);
         int pos = row + w - 1;
         int r = md[pos] = min(md[pos], md[pos + stride] + 1);
         out[pos] = r <= radius ? set : 0;
-//      assertion(pos == y * stride + w - 1, "pos=%d (y * stride + w - 1)=%d y=%d", pos, y * stride + w - 1, y);
         for (int x = w - 2; x >= 0; x--) {
             pos--;
-//          int pos1 = row + x;
-//          assertion(pos1 == pos, "pos1=%d pos=%d x=%d y=%d", row1, row, x, y);
             int r = md[pos] = min(min(md[pos], md[pos + stride] + 1), md[pos + 1] + 1);
             out[pos] = r <= radius ? set : 0;
         }
@@ -324,9 +315,9 @@ static void dilate8unz_unrolled(byte* input, int stride, int w, int h, int radiu
 }
 
 static void dilate8unz_simple(byte* input, int stride, int w, int h, int radius, byte set, byte* output) {
+    begin // 0.006151 sec
     assertion(1 <= radius && radius <= 254, "k=%d is out of [1..254] range");
     assertion(1 <= set && set <= 255, "value of \"set\"=%d is out of [1..255] range");
-    begin
     byte* img = input;
     byte* out = output;
     const int farthest = w + h;
