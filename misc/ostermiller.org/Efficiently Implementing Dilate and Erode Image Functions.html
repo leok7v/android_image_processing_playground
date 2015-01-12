@@ -1,0 +1,629 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>Efficiently Implementing Dilate and Erode Image Functions</title>
+<meta name="description" content="Guide to writing an efficient implementation of the image maniputaltion functions "dilate" and "erode".">
+<meta name="keywords" content="dilate image, erode image, image dilation, image erosion, dilation algorithm, erosion algorithm, manhattan distance">
+<link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
+<link rel="stylesheet" media="screen" title="Web View" href="style.css" type="text/css">
+
+<style>
+pre.code {
+  background-color:#ccffcc;
+  border:thin black ridge;
+  padding:1cm;
+}
+input.dilateinput {
+    border:none;
+    text-align:center;
+}
+table.image tr td{
+    border:1px solid black;
+    text-align:center;
+}
+div.example {
+    background-color:#ccccff;
+    text-align:center;
+    padding:1cm;
+    border:thin black ridge;
+    width:2in;
+}
+</style>
+<script>
+function createDilateGrid(name, algorithm, buttonname, clearname, w, h, byK){
+    var s = "";
+    s += "<form name="+name+"form onsubmit='return false();'>";
+    if (byK){
+        s += "Dilate by: <input type=text value='2' name=byK size=2><br>";
+    }
+    s += "<input type=button value='Flip a Bit' onclick='fromIntArr(\""+name+"\", flipabit(toIntArr(\""+name+"\","+w+","+h+")));'>";
+    s += "<input type=button value='Clear' onclick='fromIntArr(\""+name+"\", "+clearname+"(toIntArr(\""+name+"\","+w+","+h+")));'>";
+    s += "<table class=image>";
+    for (var i=0; i<h; i++){
+        s += "<tr>";
+        for (var j=0; j<w; j++){
+            s += "<td>";
+            s += "<input size=1 type=text class=dilateinput name=a"+i+"_"+j+" value="+(clearname=='zeroout'?0:1)+">";
+            s += "</td>";
+        }
+        s += "</tr>";
+    }
+    s += "</table>";
+    s += "<input type=button value='"+buttonname+"' onclick='fromIntArr(\""+name+"\", "+algorithm+"(toIntArr(\""+name+"\","+w+","+h+")"+(byK?", this.form.byK.value":"")+"));'>";
+    s += "</form>";
+    var el = document.getElementById(name);
+    el.innerHTML = s;
+}
+
+function flipabit(image){
+    var i = Math.floor(Math.random()*image.length);
+    var j = Math.floor(Math.random()*image[0].length);
+    image[i][j] = ((image[i][j]==0)?1:0);
+    return image;
+}
+
+function zeroout(arr){
+    for (var i=0; i<arr.length; i++){
+        for (var j=0; j<arr[i].length; j++){
+            arr[i][j] = 0;
+        }
+    }
+    return arr;
+}
+
+function oneout(arr){
+    for (var i=0; i<arr.length; i++){
+        for (var j=0; j<arr[i].length; j++){
+            arr[i][j] = 1;
+        }
+    }
+    return arr;
+}
+
+function dilatetoes(image){
+    for (var i=0; i<image.length; i++){
+        for (var j=0; j<image[i].length; j++){
+            if (image[i][j] == 1){
+                if (i>0) image[i-1][j] = 1;
+                if (j>0) image[i][j-1] = 1;
+                if (i+1<image.length) image[i+1][j] = 1;
+                if (j+1<image[i].length) image[i][j+1] = 1;
+            }
+        }
+    }
+    return image;
+}
+
+function dilatecopy(image){
+    var imagecopy = new Array(image.length);
+    for (var k = 0; k < image.length; k++){
+        imagecopy[k] = new Array(image[k].length);
+        for (var l = 0; l < image[k].length; l++){
+            imagecopy[k][l] = 0;
+        }
+    }
+    for (var i=0; i<image.length; i++){
+        for (var j=0; j<image[i].length; j++){
+            if (image[i][j] == 1){
+                imagecopy[i][j] = 1;
+                if (i>0) imagecopy[i-1][j] = 1;
+                if (j>0) imagecopy[i][j-1] = 1;
+                if (i+1<image.length) imagecopy[i+1][j] = 1;
+                if (j+1<image[i].length) imagecopy[i][j+1] = 1;
+            }
+        }
+    }
+    return imagecopy;
+}
+
+function dilatebyone(image){
+    for (var i=0; i<image.length; i++){
+        for (var j=0; j<image[i].length; j++){
+            if (image[i][j] == 1){
+                if (i>0 && image[i-1][j]==0) image[i-1][j] = 2;
+                if (j>0 && image[i][j-1]==0) image[i][j-1] = 2;
+                if (i+1<image.length && image[i+1][j]==0) image[i+1][j] = 2;
+                if (j+1<image[i].length && image[i][j+1]==0) image[i][j+1] = 2;
+            }
+        }
+    }
+    for (i=0; i<image.length; i++){
+        for (j=0; j<image[i].length; j++){
+            if (image[i][j] == 2){
+                image[i][j] = 1;
+            }
+        }
+    }
+    return image;
+}
+
+function erodebyone(image){
+    for (var i=0; i<image.length; i++){
+        for (var j=0; j<image[i].length; j++){
+            if (image[i][j] == 0){
+                if (i>0 && image[i-1][j]==1) image[i-1][j] = 2;
+                if (j>0 && image[i][j-1]==1) image[i][j-1] = 2;
+                if (i+1<image.length && image[i+1][j]==1) image[i+1][j] = 2;
+                if (j+1<image[i].length && image[i][j+1]==1) image[i][j+1] = 2;
+            }
+        }
+    }
+    for (i=0; i<image.length; i++){
+        for (j=0; j<image[i].length; j++){
+            if (image[i][j] == 2){
+                image[i][j] = 0;
+            }
+        }
+    }
+    return image;
+}
+
+var alertCount=0;
+function alertafew(s){
+    if (alertCount++ < 10){
+        alert(s);
+    }
+}
+function alertafewimage(i){
+    if (alertCount++ < 6){
+        alertImage(i);
+    }
+}
+
+function dilatebyknasty(image, k){
+    for (var i=0; i<image.length; i++){
+        for (var j=0; j<image[i].length; j++){
+            if (image[i][j] == 1){
+                for (var l=i-k; l<=i+k; l++){
+                    var remainingk = k-Math.abs(i-l);
+                    for (var m=j-remainingk; m<=j+remainingk; m++){
+                        if (l>=0 && m>=0 && l<image.length && m<image.length && image[l][m]==0){
+                            image[l][m] = 2;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for (i=0; i<image.length; i++){
+        for (j=0; j<image[i].length; j++){
+            if (image[i][j] == 2){
+                image[i][j] = 1;
+            }
+        }
+    }
+    return image;
+}
+
+function dilatebykcall(image, k){
+    for (var i=0; i<k; i++){
+        image = dilatebyone(image);
+    }
+    return image;
+}
+
+function dilatebyk(image, k){
+    image = manhattan(image);
+    for (var i=0; i<image.length; i++){
+        for (var j=0; j<image[i].length; j++){
+            image[i][j] = ((image[i][j]<=k)?1:0);
+        }
+    }
+    return image;
+}
+
+function distance(arr){
+    for (var i=0; i<arr[0].length; i++){
+        if (arr[0][i] == 1){
+            arr[0][i] = 0;
+        } else {
+            arr[0][i] = arr[0].length;
+            if (i>0) arr[0][i] = Math.min(arr[0][i], arr[0][i-1]+1);
+        }
+    }
+    for (i=arr[0].length-1; i>=0; i--){
+        if (i+1<arr[0].length) arr[0][i] = Math.min(arr[0][i], arr[0][i+1]+1);
+    }
+    return arr;
+}
+
+function manhattan(image){
+    for (var i=0; i<image.length; i++){
+        for (var j=0; j<image[i].length; j++){
+            if (image[i][j] == 1){
+                image[i][j] = 0;
+            } else {
+                image[i][j] = image.length + image[i].length;
+                if (i>0) image[i][j] = Math.min(image[i][j], image[i-1][j]+1);
+                if (j>0) image[i][j] = Math.min(image[i][j], image[i][j-1]+1);
+            }
+        }
+    }
+    for (i=image.length-1; i>=0; i--){
+        for (j=image[i].length-1; j>=0; j--){
+            if (i+1<image.length) image[i][j] = Math.min(image[i][j], image[i+1][j]+1);
+            if (j+1<image[i].length) image[i][j] = Math.min(image[i][j], image[i][j+1]+1);
+        }
+    }
+    return image;
+}
+
+function alertImage(arr){
+    s = "height: "+arr.length+" width: "+arr[0].length+"\n";
+    for (var i=0; i<arr.length; i++){
+        for (var j=0; j<arr[i].length; j++){
+            s+=arr[i][j]+" ";
+        }
+        s+="\n";
+    }
+    alert(s);
+}
+
+function fromIntArr(name, arr){
+    for (var i=0; i<arr.length; i++){
+        for (var j=0; j<arr[i].length; j++){
+            eval("document."+name+"form.a"+i+"_"+j+".value = "+arr[i][j]+";")
+        }
+    }
+}
+
+function toIntArr(name,w,h){
+    var arr = new Array(h);
+    for (var i=0; i<h; i++){
+        arr[i] = new Array(w);
+        for (var j=0; j<w; j++){
+            arr[i][j] = eval("document."+name+"form.a"+i+"_"+j+".value;");
+        }
+    }
+    return arr;
+}
+</script>
+
+</head>
+<body>
+<p class=nostyle>Efficiently Implementing Dilate and Erode Image Functions</p>
+<div class=content><a name=content></a>
+
+<h1>Efficiently Implementing Dilate and Erode Image Functions</h1>
+
+<h2>Dilate by One</h2>
+
+<h3>Motivation</h3>
+
+<h4>Dilate</h4>
+Dilate is a function that accepts a black and white image.  It is also known by the names "grow", "bolden", and "expand".  It turns on pixels which were near pixels that were on originally, thereby thickening the items in the image.
+
+<div class=example>
+<div id=dilatebyoneex></div>
+<script>createDilateGrid("dilatebyoneex","dilatebyone", "Dilate", "zeroout", 8, 8, false);</script>
+</div>
+
+<h4>Erode</h4>
+Erode is the sister function to dilate.  It is also known by the name "shrink".  It turns off pixels which were near pixels that were off originally, thereby eating away at the edges of the items in the image.
+
+<div class=example>
+<div id=erodebyoneex></div>
+<script>createDilateGrid("erodebyoneex","erodebyone", "Erode", "oneout", 8, 8, false);</script>
+</div>
+
+<h4>Detecting Image "Snow"</h4>
+Dilate and erode can be used in conjunction do detect and correct a common problem with digital and scanned images: snow.  Snow is caused by bad pixels on the CCD of a digital camera or dust that gets onto a scanned image or negative.  If we dilate and image, and then erode the image, we can see that holes in the image get filled in:
+
+<table>
+<tr><th>Original</th><th>After Dilate</th><th>After Dilate and Erode</th></tr>
+<tr><td>
+<table class=image>
+<tr><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>0</td><td>0</td><td>1</td><td>1</td><td>1</td><td>0</td><td>0</td></tr>
+<tr><td>0</td><td>0</td><td>1</td><td>0</td><td>1</td><td>0</td><td>0</td></tr>
+<tr><td>0</td><td>0</td><td>1</td><td>1</td><td>1</td><td>0</td><td>0</td></tr>
+<tr><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+</table>
+</td><td>
+<table class=image>
+<tr><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>0</td><td>0</td><td>1</td><td>1</td><td>1</td><td>0</td><td>0</td></tr>
+<tr><td>0</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>0</td></tr>
+<tr><td>0</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>0</td></tr>
+<tr><td>0</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>0</td></tr>
+<tr><td>0</td><td>0</td><td>1</td><td>1</td><td>1</td><td>0</td><td>0</td></tr>
+<tr><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+</table>
+</td><td>
+<table class=image>
+<tr><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>0</td><td>0</td><td>1</td><td>1</td><td>1</td><td>0</td><td>0</td></tr>
+<tr><td>0</td><td>0</td><td>1</td><td>1</td><td>1</td><td>0</td><td>0</td></tr>
+<tr><td>0</td><td>0</td><td>1</td><td>1</td><td>1</td><td>0</td><td>0</td></tr>
+<tr><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+</table>
+</td></tr></table>
+
+A typical algorithm to correct snow would usually be something like this:
+<pre class=code>
+Image correctSnow(Image image, int radiusOfSnow){
+    // Copy the image and convert the copy to black and white
+    Image blackAndWhiteImage = threshold(copy(image), THRESHOLD_VALUE);
+    // Copy the threshold and dilate and erode the copy
+    Image dilatedAndEroded = erode(
+        dilate(
+            copy(blackAndWhiteImage), 
+            radiusOfSnow
+        ), 
+        radiusOfSnow
+    );
+    // Figure out which pixels were snow based on the difference
+    // between the thresholded image and the dilated and eroded image
+    Image snowPixels = diff(blackAndWhiteImage, dilatedAndEroded);
+    // Fix up any pixels in the original that were marked as snow by 
+    // filling them with color of surrounding pixels
+    return blendSnowPixels(image, snowPixels);
+}</pre>
+
+<p>As we will see, dilate and erode can be efficient, no matter how big the snow that you want to remove is.</p>
+
+<h2>The Challenge</h2>
+<p>Write a function that dilates an image.  Assume that the image can be of arbitrary size (n by n).  An image is represented by a two dimensional array of integers.  The image data is binary (zeros and ones), black and white, no color or gray scale.  Dilate should turn on any pixel that is touching a pixel in the north, east, south, or west direction (no diagonals) that is already turned on in the input.</p>
+
+<p>This is how dilation is supposed to behave (Flip a couple bits and the press dilate):</p>
+
+<div class=example>
+<div id=dilatebyoneexample></div>
+<script>createDilateGrid("dilatebyoneexample","dilatebyone", "Dilate", "zeroout", 8, 8, false);</script>
+</div>
+
+<h3>First Try</h3>
+<table><tr><td>
+<p>When first presented with this problem most people make a few mistake related to bounds checking (off by one errors and such).  Those problems are easily corrected.  However the most common incorrect algorithm is that it is easy to step on ones toes.</p>
+<pre class=code>// Incorrect solution - steps on its own toes
+int[][] dilate(int[][] image){
+    for (int i=0; i&lt;image.length; i++){
+        for (int j=0; j&lt;image[i].length; j++){
+            if (image[i][j] == 1){
+                if (i&gt;0) image[i-1][j] = 1;
+                if (j&gt;0) image[i][j-1] = 1;
+                if (i+1&lt;image.length) image[i+1][j] = 1;
+                if (j+1&lt;image[i].length) image[i][j+1] = 1;
+            }
+        }
+    }
+    return image;
+}</pre>
+</td><td>
+<div id=dilatetoes></div>
+<script>createDilateGrid("dilatetoes", "dilatetoes", "Dilate (w/ bug)", "zeroout", 8, 8, false);</script>
+</td></tr></table>
+
+<h3>Second Try</h3>
+<table><tr><td>
+<p>The easiest way to correct this is to create a copy of the image to work with a copy of the image.  This is perfectly correct solution, however it uses O(n^2) extra space.  Notice that the copy of the image has to be initialized to all zeros and that the current pixel has to be copied over as well as the surrounding pixels.</p>
+<pre class=code>// Correct, but creates a copy of the image which is inefficient
+int[][] dilate(int[][] image){
+    int[][] imagecopy = new int[image.length][image[0].length];
+    for (int i=0; i&lt;image.length; i++){
+        for (int j=0; j&lt;image[i].length; j++){
+            if (image[i][j] == 1){
+                imagecopy[i][j] = 1;
+                if (i&gt;0) imagecopy[i-1][j] = 1;
+                if (j&gt;0) imagecopy[i][j-1] = 1;
+                if (i+1&lt;image.length) imagecopy[i+1][j] = 1;
+                if (j+1&lt;image[i].length) imagecopy[i][j+1] = 1;
+            }
+        }
+    }
+    return imagecopy;
+}</pre>
+</td><td>
+<div id=dilatecopy></div>
+<script>createDilateGrid("dilatecopy", "dilatecopy", "Dilate (using image copy)", "zeroout", 8, 8, false);</script>
+</td></tr></table>
+
+<h3>Best Solution</h3>
+<table><tr><td>
+<p>The best solution is to store information about what is newly turned on (vs was on originally) in the pixels themselves.  This solution uses the value of 2 to indicate something was newly turned on. Notice that before a pixel is flipped to a two, it must be checked to ensure that it wasn't a one first.  Also notice that a second pass is made at the end to turn the twos back to ones.  This does not effect the magnitude of the running time: The algorithm still runs in O(n^2) time.</p>
+<pre class=code>// Best dilate by one solution
+int[][] dilate(int[][] image){
+    for (int i=0; i&lt;image.length; i++){
+        for (int j=0; j&lt;image[i].length; j++){
+            if (image[i][j] == 1){
+                if (i&gt;0 &amp;&amp; image[i-1][j]==0) image[i-1][j] = 2;
+                if (j&gt;0 &amp;&amp; image[i][j-1]==0) image[i][j-1] = 2;
+                if (i+1&lt;image.length &amp;&amp; image[i+1][j]==0) image[i+1][j] = 2;
+                if (j+1&lt;image[i].length &amp;&amp; image[i][j+1]==0) image[i][j+1] = 2;
+            }
+        }
+    }
+    for (int i=0; i&lt;image.length; i++){
+        for (int j=0; j&lt;image[i].length; j++){
+            if (image[i][j] == 2){
+                image[i][j] = 1;
+            }
+        }
+    }
+    return image;
+}</pre>
+</td><td>
+<div id=dilatebyone></div>
+<script>createDilateGrid("dilatebyone","dilatebyone", "Dilate (best)", "zeroout", 8, 8, false);</script>
+</td></tr></table>
+
+
+<h2>Dilate by K</h2>
+
+<h3>Motivation</h3>
+<p>What we have written is dilate by one.  This can be generalized into dilate by k.  k will be defined in terms of Manhattan distance.  In Manhattan, the distance between any two places is the number of blocks you have to walk to get there.  You must travel in a stair step fashion as you cannot cut diagonally through buildings.  The dilation by k will turn on all pixels that are within k Manhattan distance of a pixel that was on in the input.</p>
+
+<p>Here is how dilation by k is supposed to work:</p>
+<div class=example>
+<div id=dilatebykexample></div>
+<script>createDilateGrid("dilatebykexample","dilatebykcall", "Dilate by K", "zeroout", 8, 8, true);</script>
+</div>
+</td></tr></table>
+
+<h3>Nasty Solution</h3>
+<table><tr><td>
+<p>The temptation is to follow a similar algorithm to the one presented by dilate by one.  In such a solution we would walk each point in the image.  When a point that is on is found, travel k in each direction turning on pixels.  While possible to write, such a solution would be fairly messy and run in O(n^2*k^2) time.  Since k is bounded by n, that is really a O(n^4) solution.  There are both much cleaner ways and much more efficient ways to write the algorithm.</p>
+<pre class=code>// n^4 (very inefficient) solution for dilate by k
+int[][] dilate(int[][] image, int k){
+    for (int i=0; i&lt;image.length; i++){
+        for (int j=0; j&lt;image[i].length; j++){
+            if (image[i][j] == 1){
+                for (int l=i-k; l&lt;=i+k; l++){
+                    int remainingk = k-Math.abs(i-l);
+                    for (int m=j-remainingk; m&lt;=j+remainingk; m++){
+                        if (l&gt;=0 && m&gt;=0 && l&lt;image.length && m&lt;image.length && image[l][m]==0){
+                            image[l][m] = 2;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for (int i=0; i&lt;image.length; i++){
+        for (int j=0; j&lt;image[i].length; j++){
+            if (image[i][j] == 2){
+                image[i][j] = 1;
+            }
+        }
+    }
+    return image;
+}</pre>
+</td><td>
+<div id=dilatebyknasty></div>
+<script>createDilateGrid("dilatebyknasty","dilatebyknasty", "Dilate by K (nasty n^4)", "zeroout", 8, 8, true);</script>
+</td></tr></table>
+
+
+<h3>Easy solution</h3>
+<table><tr><td>
+<p>If you pressed the dilate button more than once in the dilate by one examples, you may have noticed that dilating by one k times, is equivalent to dilating by k.  This suggests the super easy algorithm of calling what was already written k times.  Notice that this runs in O(n^2*k) time.  Since k is bounded by n, that is really O(n^3) time.</p>
+<pre class=code>// easy to write (but n^3 inefficient) dilate by k solution
+int[][] dilate(int[][] image, int k){
+    for (int i=0; i&lt;k; i++){
+        image = dilate(image);
+    }
+    return image;
+}</pre>
+</td><td>
+<div id=dilatebykcall></div>
+<script>createDilateGrid("dilatebykcall","dilatebykcall", "Dilate by K (easy n^3)", "zeroout", 8, 8, true);</script>
+</td></tr></table>
+
+<h3>Efficient Solution</h3>
+<table><tr><td>
+<p>To find an O(n^2) solution to this problem, the problem needs to be framed differently.  What if there were an oracle that told us (for every pixel) the Manhattan distance to the nearest pixel. Pixels that are on would get a zero from the oracle.  Pixels next to them a one, and so on.</p>
+
+<p>The Manhattan distance oracle:</p>
+
+<div class=example>
+<div id=manhattanexample></div>
+<script>createDilateGrid("manhattanexample","manhattan", "Manhattan Distance", "zeroout", 8, 8, false);</script>
+</div>
+
+<p>If we had that oracle we could just threshold by the Manhattan distance.</p>
+<pre class=code>// n^2 solution with Manhattan oracle
+int[][] dilate(int[][] image, int k){
+    image = manhattan(image);
+    for (int i=0; i&lt;image.length; i++){
+        for (int j=0; j&lt;image[i].length; j++){
+            image[i][j] = ((image[i][j]&lt;=k)?1:0);
+        }
+    }
+    return image;
+}</pre>
+</td><td>
+<div id=dilatebyk></div>
+<script>createDilateGrid("dilatebyk","dilatebyk", "Dilate by K (efficient n^2)", "zeroout", 8, 8, true);</script>
+</td></tr></table>
+
+
+<h2>Manhattan Oracle</h2>
+
+<h3>In One Dimension</h3>
+<table><tr><td>
+<p>So the question just becomes how can we write the Manhattan oracle to run in O(n^2) time.  The best way to approach this problem is to take it down a dimension.  In a single dimensional array, for each point find the distance to the nearest "on" point.</p>
+<p>There are two facts that help:</p>
+<ol>
+<li>The maximum distance to a pixel that is on is the length of the array</li>
+<li>A pixel is at most one further from a pixel that is on than the pixel before it</li>
+</ol>
+<p>Those with eagle eyes will soon discover that if you walk the array, and find a pixel that is on, you can count up until you get halfway to the next pixel that is on.  That suggests that a two pass solution:  One pass to find the nearest pixel to the left and one pass to find the nearest pixel to the right.  The distance to the nearest pixel will be the minimum of the pixel to the left and the pixel to the right.  In cases in which the distance is unknown, it is safe to assume the maximum because that value will be corrected later.</p>
+<pre class=code>// O(n) solution to find the distance to "on" pixels in a single dimension array
+int[] distance(int[] arr){
+    // traverse forwards
+    for (int i=0; i&lt;arr.length; i++){
+        if (arr[i] == 1){
+            // first pass and pixel was on, it gets a zero
+            arr[i] = 0;
+        } else {
+            // pixel was off
+            // It is at most the length of array
+            // away from a pixel that is on
+            arr[i] = arr.length;
+            // One more than the pixel to the left
+            if (i&gt;0) arr[i] = Math.min(arr[i], arr[i-1]+1);
+        }
+    }
+    // traverse backwards
+    for (int i=arr.length-1; i>=0; i--){
+        // what we had on the first pass
+        // or one more than the pixel to the right
+        if (i+1&lt;arr.length) arr[i] = Math.min(arr[i], arr[i+1]+1);
+    }
+    return arr;
+}</pre>
+</td><td>
+<div id=distance></div>
+<script>createDilateGrid("distance","distance", "Compute Distance to ON Pixels", "zeroout", 8, 1, false);</script>
+</td></tr></table>
+
+<h3>In Two Dimensions</h3>
+<table><tr><td>
+<p>Generalizing from one dimension, we have a similar solution, but now have pixels on four sides of us instead of two sides to which to pay attention.  Again, we can make two passes.  On the first pass, look north and west, adding one to each (use the minimum).  On the second pass, look south and east, adding one to each (use the minimum).  The maximum Manhattan distance that a pixel can be away from a pixel that is "on" is the sum of the width and the height of the image.</p>
+<pre class=code>// O(n^2) solution to find the Manhattan distance to "on" pixels in a two dimension array
+int[][] manhattan(int[][] image){
+    // traverse from top left to bottom right
+    for (int i=0; i&lt;image.length; i++){
+        for (int j=0; j&lt;image[i].length; j++){
+            if (image[i][j] == 1){
+                // first pass and pixel was on, it gets a zero
+                image[i][j] = 0;
+            } else {
+                // pixel was off
+                // It is at most the sum of the lengths of the array
+                // away from a pixel that is on
+                image[i][j] = image.length + image[i].length;
+                // or one more than the pixel to the north
+                if (i&gt;0) image[i][j] = Math.min(image[i][j], image[i-1][j]+1);
+                // or one more than the pixel to the west
+                if (j&gt;0) image[i][j] = Math.min(image[i][j], image[i][j-1]+1);
+            }
+        }
+    }
+    // traverse from bottom right to top left
+    for (int i=image.length-1; i&gt;=0; i--){
+        for (int j=image[i].length-1; j&gt;=0; j--){
+            // either what we had on the first pass
+            // or one more than the pixel to the south
+            if (i+1&lt;image.length) image[i][j] = Math.min(image[i][j], image[i+1][j]+1);
+            // or one more than the pixel to the east
+            if (j+1&lt;image[i].length) image[i][j] = Math.min(image[i][j], image[i][j+1]+1);
+        }
+    }
+    return image;
+}</pre>
+</td><td>
+<div id=manhattan></div>
+<script>createDilateGrid("manhattan","manhattan", "Manhattan Distance", "zeroout", 8, 8, false);</script>
+</td></tr></table>
+
+
+</div>
+<div class=sitenav><a href="http://ostermiller.org/">ostermiller.org</a> (<a href="http://ostermiller.org/siteindex.html">site index</a>)</div>
+<div class=copyright><p>Copyright <a href="/contact.pl" class=mail>Stephen Ostermiller</a> 1996-2014</p></div>
+</body>
+</html>
