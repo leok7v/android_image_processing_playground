@@ -6,8 +6,9 @@
 #endif
 
 #define PROFILE 1
+#define CROSS_CHECK 0
 
-#ifdef PROFILE
+#if PROFILE
 #   define begin static int64_t min_time; int64_t start_time = cputime();
 #   define end(N) \
     { \
@@ -29,43 +30,24 @@ static void threshold8u_x4(byte* input, int stride, int w, int h, byte value, by
 static void threshold8u_x1(byte* input, int stride, int w, int h, byte value, byte set, byte* output);
 
 static void dilate8unz_r1_simple(byte* input, int stride, int w, int h, byte set, byte* output);
-static void dilate8unz_r1_unrolled(byte* input, int stride, int w, int h, byte set, byte* output);
-static void dilate8unz_simple(byte* input, int stride, int w, int h, int radius, byte set, byte* output);
 static void dilate8unz_unrolled(byte* input, int stride, int w, int h, int radius, byte set, byte* output);
 
-static void dump(const char* label, byte* img, int stride, int x, int y, int w, int h);
+#if CROSS_CHECK
+static void dilate8unz_simple(byte* input, int stride, int w, int h, int radius, byte set, byte* output);
+static void dilate8unz_r1_unrolled(byte* input, int stride, int w, int h, byte set, byte* output);
 
-static void check(byte* input, int stride, int w, int h, byte* output, byte* verify) {
-    for (int y = 0; y < h; y++) {
-        for (int x = 0; x < w; x++) {
-            if (output[y * stride + x] != verify[y * stride + x]) {
-                print_stacktrace();
-                dump("input",  input,  stride, x, y, w, h);
-                dump("output", output, stride, x, y, w, h);
-                dump("verify", verify, stride, x, y, w, h);
-                assertion(output[y * stride + x] == verify[y * stride + x], "output[y=%d, x=%d %d]=%d != verify[]=%d", y, x, y * stride + x, output[y * stride + x], verify[y * stride + x]);
-            }
-        }
-    }
-}
+static void check(byte* input, int stride, int w, int h, byte* output, byte* verify);
+static void dump(const char* label, byte* img, int stride, int x, int y, int w, int h);
+#else
 
 void ip_threshold8u(void* input, int stride, int w, int h, unsigned char value, unsigned char set, void* output) {
     assertion(input == output || input + h * stride <= output || output + h * stride <= input,
               "input=[%p..%p] and output=[%p..%p] should not overlap",
               input, input + h * stride -1, output, output + h * stride -1);
-    byte verify[h * stride];
-    threshold8u_x1(input, stride, w, h, value, set, verify);
     if (stride % 16 == 0 && w % 16 == 0) {
         threshold8u_neon(input, stride, w, h, value, set, output);
-        check(input, stride, w, h, output, verify);
-        assertion(memcmp(verify, output, h * stride) == 0, "threshold8u_neon != threshold8u_x1");
-        threshold8u_x4(input, stride, w, h, value, set, output); // test
-        check(input, stride, w, h, output, verify);
-        assertion(memcmp(verify, output, h * stride) == 0, "threshold8u_x4 != threshold8u_x1");
     } else if (stride % 4 == 0 && w % 4 == 0) {
         threshold8u_x4(input, stride, w, h, value, set, output);
-        check(input, stride, w, h, output, verify);
-        assertion(memcmp(verify, output, h * stride) == 0, "threshold8u_x4 != threshold8u_x1");
     } else {
         threshold8u_x1(input, stride, w, h, value, set, output);
     }
@@ -75,22 +57,14 @@ void ip_dilate8unz(void* input, int stride, int w, int h, int radius, unsigned c
     assertion(input == output || input + h * stride <= output || output + h * stride <= input,
               "input=[%p..%p] and output=[%p..%p] should not overlap",
               input, input + h * stride -1, output, output + h * stride -1);
-    byte verify[h * stride];
-    dilate8unz_simple(input, stride, w, h, radius, set, verify);
     if (radius == 1) {
         dilate8unz_r1_simple(input, stride, w, h, set, output);
-        check(input, stride, w, h, output, verify);
-        assertion(memcmp(verify, output, h * stride) == 0, "dilate8unz_r1_simple != dilate8unz_simple");
-        dilate8unz_r1_unrolled(input, stride, w, h, set, output);
-        check(input, stride, w, h, output, verify);
-        assertion(memcmp(verify, output, h * stride) == 0, "dilate8unz_r1_unrolled != dilate8unz_simple");
-        dilate8unz_unrolled(input, stride, w, h, radius, set, output);
-        check(input, stride, w, h, output, verify);
-        assertion(memcmp(verify, output, h * stride) == 0, "dilate8unz_unrolled != dilate8unz_simple");
     } else {
-        dilate8unz_simple(input, stride, w, h, radius, set, output);
+        dilate8unz_unrolled(input, stride, w, h, radius, set, output);
     }
 }
+
+#endif
 
 static void threshold8u_x1(byte* input, int stride, int w, int h, byte value, byte set, byte* output) {
     // 0.000492 sec
@@ -222,6 +196,8 @@ static void dilate8unz_r1_simple(byte* input, int stride, int w, int h, byte set
     end(1);
 }
 
+#if CROSS_CHECK
+
 static void dilate8unz_r1_unrolled(byte* input, int stride, int w, int h, byte set, byte* output) {
     // 640x480 0.001254 sec
     assert(set != 0);
@@ -265,6 +241,8 @@ static void dilate8unz_r1_unrolled(byte* input, int stride, int w, int h, byte s
     }
     end(1);
 }
+
+#endif
 
 static void dilate8unz_unrolled(byte* input, int stride, int w, int h, int radius, byte set, byte* output) {
     begin // 0.003534 sec
@@ -314,6 +292,8 @@ static void dilate8unz_unrolled(byte* input, int stride, int w, int h, int radiu
     end(1);
 }
 
+#if CROSS_CHECK
+
 static void dilate8unz_simple(byte* input, int stride, int w, int h, int radius, byte set, byte* output) {
     begin // 0.006151 sec
     assertion(1 <= radius && radius <= 254, "k=%d is out of [1..254] range");
@@ -348,6 +328,63 @@ static void dilate8unz_simple(byte* input, int stride, int w, int h, int radius,
     end(1);
 }
 
+void ip_threshold8u(void* input, int stride, int w, int h, unsigned char value, unsigned char set, void* output) {
+    assertion(input == output || input + h * stride <= output || output + h * stride <= input,
+              "input=[%p..%p] and output=[%p..%p] should not overlap",
+              input, input + h * stride -1, output, output + h * stride -1);
+    byte verify[h * stride];
+    threshold8u_x1(input, stride, w, h, value, set, verify);
+    if (stride % 16 == 0 && w % 16 == 0) {
+        threshold8u_neon(input, stride, w, h, value, set, output);
+        check(input, stride, w, h, output, verify);
+        assertion(memcmp(verify, output, h * stride) == 0, "threshold8u_neon != threshold8u_x1");
+        threshold8u_x4(input, stride, w, h, value, set, output); // test
+        check(input, stride, w, h, output, verify);
+        assertion(memcmp(verify, output, h * stride) == 0, "threshold8u_x4 != threshold8u_x1");
+    } else if (stride % 4 == 0 && w % 4 == 0) {
+        threshold8u_x4(input, stride, w, h, value, set, output);
+        check(input, stride, w, h, output, verify);
+        assertion(memcmp(verify, output, h * stride) == 0, "threshold8u_x4 != threshold8u_x1");
+    } else {
+        threshold8u_x1(input, stride, w, h, value, set, output);
+    }
+}
+
+void ip_dilate8unz(void* input, int stride, int w, int h, int radius, unsigned char set, void* output) {
+    assertion(input == output || input + h * stride <= output || output + h * stride <= input,
+              "input=[%p..%p] and output=[%p..%p] should not overlap",
+              input, input + h * stride -1, output, output + h * stride -1);
+    byte verify[h * stride];
+    dilate8unz_simple(input, stride, w, h, radius, set, verify);
+    if (radius == 1) {
+        dilate8unz_r1_simple(input, stride, w, h, set, output);
+        check(input, stride, w, h, output, verify);
+        assertion(memcmp(verify, output, h * stride) == 0, "dilate8unz_r1_simple != dilate8unz_simple");
+        dilate8unz_r1_unrolled(input, stride, w, h, set, output);
+        check(input, stride, w, h, output, verify);
+        assertion(memcmp(verify, output, h * stride) == 0, "dilate8unz_r1_unrolled != dilate8unz_simple");
+        dilate8unz_unrolled(input, stride, w, h, radius, set, output);
+        check(input, stride, w, h, output, verify);
+        assertion(memcmp(verify, output, h * stride) == 0, "dilate8unz_unrolled != dilate8unz_simple");
+    } else {
+        dilate8unz_simple(input, stride, w, h, radius, set, output);
+    }
+}
+
+static void check(byte* input, int stride, int w, int h, byte* output, byte* verify) {
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            if (output[y * stride + x] != verify[y * stride + x]) {
+                print_stacktrace();
+                dump("input",  input,  stride, x, y, w, h);
+                dump("output", output, stride, x, y, w, h);
+                dump("verify", verify, stride, x, y, w, h);
+                assertion(output[y * stride + x] == verify[y * stride + x], "output[y=%d, x=%d %d]=%d != verify[]=%d", y, x, y * stride + x, output[y * stride + x], verify[y * stride + x]);
+            }
+        }
+    }
+}
+
 static void dump(const char* label, byte* img, int stride, int x, int y, int w, int h) {
     char buf[512];
     char num[16];
@@ -369,6 +406,8 @@ static void dump(const char* label, byte* img, int stride, int x, int y, int w, 
         trace(buf);
     }
 }
+
+#endif
 
 /*
 static void dump_md(const char* label, int* distance, int stride, int x, int y, int w, int h) {
