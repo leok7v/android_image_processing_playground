@@ -71,6 +71,10 @@ void Java_jni_Native_memcpyFA(JNIEnv* env, jobject that, jfloatArray data, jlong
     (*env)->ReleaseFloatArrayElements(env, data, fa, 0);
 }
 
+void Java_jni_Native_memset(JNIEnv* env, jobject that, jlong address, jint data, jint bytes) {
+    memset(ll2p(address), data, bytes);
+}
+
 jlong Java_jni_Native_malloc(JNIEnv* env, jobject that, jint bytes) {
     return p2ll(mem_allocz(bytes));
 }

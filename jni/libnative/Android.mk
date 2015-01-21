@@ -22,13 +22,14 @@ LOCAL_C_INCLUDES += $(LOCAL_PATH)/../inc
 LOCAL_SRC_FILES := android.c mem.c mapsl.c mapll.c timestamp.c trace.c backtrace.c
 LOCAL_SRC_FILES += image_processing.c
 LOCAL_SRC_FILES += image_processing_ocv.cpp
-LOCAL_SRC_FILES += jni_native.c jni_android.c jni_image_processing.c
+LOCAL_SRC_FILES += native_jni.c android_jni.c image_processing_jni.c
 
 LOCAL_CPPFLAGS  += -std=c++0x
 LOCAL_C99_FILES := $(filter %.c, $(LOCAL_SRC_FILES))
 TARGET-process-src-files-tags += $(call add-src-files-target-cflags, $(LOCAL_C99_FILES), -std=c99)
 
 LOCAL_LDLIBS    += -llog -ljnigraphics -lGLESv1_CM -landroid
+LOCAL_SHARED_LIBRARIES += opencv_java
 LOCAL_STATIC_LIBRARIES := cpufeatures
 
 include $(BUILD_SHARED_LIBRARY)

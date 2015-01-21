@@ -44,6 +44,7 @@ public class Native {
     }
 
     public static native int strlen(long address);
+    public static native void memset(long address, int data, int bytes);
 
     private static native void memcpyAB(long address, byte[] data, int offset, int length);
     private static native void memcpyBA(byte[] data, long address, int offset, int length);

@@ -235,6 +235,7 @@
       <w>imager</w>
       <w>imageset</w>
       <w>imagesets</w>
+      <w>imgproc</w>
       <w>imread</w>
       <w>imwrite</w>
       <w>indx</w>
@@ -366,6 +367,7 @@
       <w>nsec</w>
       <w>nsleep</w>
       <w>ntdll</w>
+      <w>nvidia</w>
       <w>odml</w>
       <w>offwhite</w>
       <w>omap</w>
@@ -418,6 +420,7 @@
       <w>queryctrl</w>
       <w>querymenu</w>
       <w>raii</w>
+      <w>rasterized</w>
       <w>readbuffers</w>
       <w>readdir</w>
       <w>realloc</w>
@@ -430,6 +433,7 @@
       <w>reqbufs</w>
       <w>requestbuffers</w>
       <w>resync</w>
+      <w>retr</w>
       <w>revents</w>
       <w>reweight</w>
       <w>rgbx</w>
