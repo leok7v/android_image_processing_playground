@@ -172,6 +172,13 @@ int64_t mem_allocations() {
     return total_allocations;
 }
 
+static malloc16(size_t bytes) {
+    void* a = null;
+    int r = posix_memalign(&a, 16, bytes);
+    posix_info(r);
+    return r == 0 ? a : null;
+}
+
 __attribute__((constructor)) /* alternatively LOCAL_LDFLAGS=-Wl,-init,foo -fini,bar */
 void mem_init(void) {
     /* init/fini is called on dlclose on the loading thread.
@@ -200,7 +207,7 @@ void mem_init(void) {
         mem_alloc = mem_alloc_;
         mem_free = (mem_free_t)mem_free_;
 #else
-        mem_alloc = malloc;
+        mem_alloc = malloc16;
         mem_free = (mem_free_t)free;
 #endif
         total_allocations = 0;

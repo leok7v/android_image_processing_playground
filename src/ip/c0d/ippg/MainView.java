@@ -36,7 +36,7 @@ public class MainView extends ViewGroup implements TopView {
             ip.threshold(buffer, 200, 255, outputThreshold);
             bitmapViews[1].update(outputThreshold, w, h, bpp);
             memset(outputDilate, 0, C.WIDTH * C.HEIGHT);
-            ip.dilate(outputThreshold, 3, 255, outputDilate);
+            ip.dilate(outputThreshold, 1, 255, outputDilate);
             bitmapViews[2].update(outputDilate, w, h, bpp);
             bitmapViews[3].update(outputDilate, w, h, bpp);
             ip.findBlobs(outputDilate);

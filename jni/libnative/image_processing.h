@@ -35,14 +35,9 @@ typedef struct ip_context_s {
     int w;
     int h;
     /* output of ip_threshold */
-    int threshold;
-    unsigned char btt[256]; /* byte_threshold_table byte[256] */
-    int* vs; /* int[h] sum of vertical non zero pixel values */
-    int* hs; /* int[w] sum of horizontal non zero pixel values */
+    int threshold; /* last threshold "btt" was initialized for */
+    unsigned char btt[256]; /* byte threshold table */
     ip_rect_t non_zero; /* minimum output region that has non-zero pixels */
-    /* output of ip_dilate */
-    int* md; /* int[w * h] manhattan distance calculated by dilate */
-
     /* output of ip_find_blobs */
     int number_of_blobs;
     int number_of_points;  /* sum of number of points in all segments */

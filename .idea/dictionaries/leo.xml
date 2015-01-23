@@ -137,6 +137,7 @@
       <w>eigen</w>
       <w>eintr</w>
       <w>einval</w>
+      <w>endianness</w>
       <w>endif</w>
       <w>endl</w>
       <w>enodev</w>
@@ -361,6 +362,7 @@
       <w>netdb</w>
       <w>netinet</w>
       <w>nframe</w>
+      <w>nness</w>
       <w>nonblock</w>
       <w>nonsignaled</w>
       <w>noop</w>
@@ -568,16 +570,21 @@
       <w>usec</w>
       <w>usrdll</w>
       <w>uvcvideo</w>
+      <w>vaddq</w>
       <w>vals</w>
       <w>vandq</w>
       <w>vcgteq</w>
       <w>vcgtq</w>
       <w>vdupq</w>
+      <w>vgetq</w>
       <w>viai</w>
       <w>videodev</w>
       <w>videoscheduler</w>
       <w>vidioc</w>
       <w>vipp</w>
+      <w>vorrq</w>
+      <w>vpaddlq</w>
+      <w>vsetq</w>
       <w>vsnprintf</w>
       <w>vsprintf</w>
       <w>vtrace</w>
