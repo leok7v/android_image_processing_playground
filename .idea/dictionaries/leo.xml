@@ -48,6 +48,7 @@
       <w>bmps</w>
       <w>bmpset</w>
       <w>builtins</w>
+      <w>burlywood</w>
       <w>busnum</w>
       <w>bytesperline</w>
       <w>bytesused</w>
@@ -193,6 +194,7 @@
       <w>functor</w>
       <w>funroll</w>
       <w>fvariable</w>
+      <w>gainsboro</w>
       <w>getaffinity</w>
       <w>getcwd</w>
       <w>getgid</w>
@@ -427,6 +429,7 @@
       <w>readdir</w>
       <w>realloc</w>
       <w>realtime</w>
+      <w>rebecca</w>
       <w>rects</w>
       <w>recycler</w>
       <w>registerack</w>
