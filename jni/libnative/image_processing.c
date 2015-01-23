@@ -111,6 +111,8 @@ static void check(byte* input, int stride, int w, int h, byte* output, byte* ver
     }
 }
 
+#undef COMPARE_RESULTS
+
 void ip_threshold(ip_context_t* context, void* input, unsigned char threshold, unsigned char set, void* output) {
     int64_t start_time = cputime();
     const int w = context->w;
@@ -130,7 +132,7 @@ void ip_threshold(ip_context_t* context, void* input, unsigned char threshold, u
         trace("warning not 4 bytes aligned threshold %p %p %dx%d", input, output, w, h);
         threshold_x1(context, input, threshold, set, output);
     }
-/*
+#ifdef COMPARE_RESULTS
     byte output1[w * h];
     timestamp("x1");
     threshold_x1(context, input, threshold, set, output1);
@@ -154,7 +156,7 @@ void ip_threshold(ip_context_t* context, void* input, unsigned char threshold, u
     check(input, stride, w, h, output3, output1);
     assert(memcmp(output1, output3, w * h) == 0);
     assert(memcmp(&r1, &r3, sizeof(r1)) == 0);
-*/
+#endif
     context->threshold_time = (cputime() - start_time) / (double)NANOSECONDS_IN_SECOND;
 }
 
@@ -193,9 +195,9 @@ static void ip_inflate_rect(ip_rect_t* r, int dx, int dy, int min_x, int min_y, 
     r->bottom = min(r->bottom + dy, max_y);
 }
 
-static void non_zero_rectangle(ip_context_t* context, const uint32_t const* vsm, const void const* hsm, bool neon) {
+static void non_zero_rectangle(ip_context_t* context, const uint32_t const* vnz, const void const* hnz, bool neon) {
     if (neon) {
-        const byte const* hs = (const byte* const)hsm;
+        const byte const* hs = (const byte* const)hnz; // horizontal non zero bytes present
         const int w = context->w;
         int min_x = 0;
         while (min_x < w && hs[min_x] == 0) { min_x++; }
@@ -204,7 +206,7 @@ static void non_zero_rectangle(ip_context_t* context, const uint32_t const* vsm,
         context->non_zero.left = min_x;
         context->non_zero.right = max_x + 1;
     } else {
-        const int const* hs = hsm;
+        const int const* hs = hnz;
         const int w = context->w;
         int min_x = 0;
         while (min_x < w && hs[min_x] == 0) { min_x++; }
@@ -214,7 +216,7 @@ static void non_zero_rectangle(ip_context_t* context, const uint32_t const* vsm,
         context->non_zero.right = max_x + 1;
     }
     {
-        const uint32_t const* vs = vsm;
+        const uint32_t const* vs = vnz;  // vertical non zero bytes present
         const int h = context->h;
         int min_y = 0;
         while (min_y < h && vs[min_y] == 0) { min_y++; }
@@ -254,9 +256,9 @@ static void threshold_x1(ip_context_t* context, const byte const* input,
         context->threshold = threshold;
     }
     const byte const* btt = context->btt;
-    uint32_t hs[w];
-    uint32_t vs[h];
-    memset(hs, 0, w * sizeof(uint32_t));
+    uint32_t hnz[w];
+    uint32_t vnz[h];
+    memset(hnz, 0, sizeof(hnz));
     byte* in  = (byte*)input;
     byte* out = (byte*)output;
     for (int y = 0; y < h; y++) {
@@ -264,14 +266,14 @@ static void threshold_x1(ip_context_t* context, const byte const* input,
         for (int x = 0; x < w; x++) {
             byte v = btt[in[x]];
             s |= v;
-            hs[x] |= v;
+            hnz[x] |= v;
             out[x] = v;
         }
-        vs[y] = s;
+        vnz[y] = s;
         in += stride;
         out += stride;
     }
-    non_zero_rectangle(context, vs, hs, false);
+    non_zero_rectangle(context, vnz, hnz, false);
 }
 
 static inline uint32_t clip(const uint32_t v, const uint32_t shift, const byte threshold, const byte set) {
@@ -288,9 +290,9 @@ static void threshold_x4(ip_context_t* context, const byte const* input,
     assertion(stride % 4 == 0, "expected stride=%d to be divisible by 4", stride);
     assertion((uintptr_t)input  % 4 == 0, "expected input=%p to be divisible by 4", input);
     assertion((uintptr_t)output % 4 == 0, "expected output=%p to be divisible by 4", output);
-    uint32_t vs[h];
-    uint32_t hsm[w];
-    memset(hsm, 0, w * sizeof(uint32_t));
+    uint32_t vnz[h];
+    uint32_t hnz[w];
+    memset(hnz, 0, sizeof(hnz));
     const int s4 = stride / 4;
     const int w4 = w / 4;
     uint32_t* in  = (uint32_t*)input;
@@ -300,7 +302,7 @@ static void threshold_x4(ip_context_t* context, const byte const* input,
             uint32_t* p = in;
             uint32_t* o = out;
             uint32_t* e = p + w4;
-            uint32_t* hs = hsm;
+            uint32_t* hs = hnz;
             uint32_t  s = 0;
             while (p != e) {
                 unsigned int b4 = *p++;
@@ -315,7 +317,7 @@ static void threshold_x4(ip_context_t* context, const byte const* input,
                 *hs++ |= t2;
                 *hs++ |= t3;
             }
-            vs[y] = s;
+            vnz[y] = s;
             in += s4;
             out += s4;
         }
@@ -324,7 +326,7 @@ static void threshold_x4(ip_context_t* context, const byte const* input,
             uint32_t* p = in;
             uint32_t* o = out;
             uint32_t* e = p + w4;
-            uint32_t* hs = hsm;
+            uint32_t* hs = hnz;
             unsigned int s = 0;
             while (p != e) {
                 unsigned int b4 = *p++;
@@ -339,12 +341,12 @@ static void threshold_x4(ip_context_t* context, const byte const* input,
                 *hs++ |= t1;
                 *hs++ |= t0;
             }
-            vs[y] = s;
+            vnz[y] = s;
             in += s4;
             out += s4;
         }
     }
-    non_zero_rectangle(context, vs, hsm, false);
+    non_zero_rectangle(context, vnz, hnz, false);
 }
 
 static void threshold_neon(ip_context_t* context, const byte const* input,
@@ -359,14 +361,14 @@ static void threshold_neon(ip_context_t* context, const byte const* input,
     uint8x16_t v_max = vdupq_n_u8(set);
     byte* p = (byte*)input;
     byte* o = (byte*)output;
-    uint32_t vs[h];
-    byte hsm[w];
-    memset(hsm, 0, w);
+    uint32_t vnz[h];
+    byte hnz[w];
+    memset(hnz, 0, sizeof(hnz));
     for (int y = 0; y < h; y++) {
         byte* s = p;
         byte* d = o;
         byte* e = s + w;
-        byte* hs = hsm;
+        byte* hs = hnz;
         int sum = 0;
         uint8x16_t next_b16 = vld1q_u8(s);
         uint8x16_t next_hs  = vld1q_u8(hs);
@@ -389,17 +391,17 @@ static void threshold_neon(ip_context_t* context, const byte const* input,
             s += 16;
             hs += 16;
         }
-        vs[y] = sum;
+        vnz[y] = sum;
         p += stride;
         o += stride;
     }
-    non_zero_rectangle(context, vs, hsm, true);
+    non_zero_rectangle(context, vnz, hnz, true);
 }
 
 static void dilate_r1_simple(const byte const* input, const int stride, const int w, const int h, const byte set, byte* output) {
     // 640x480 0.001092 sec
     byte line[w];
-    memset(line, 0, w);
+    memset(line, 0, sizeof(line));
     for (int y = 0; y < h; y++) {
         int row = y * stride;
         for (int x = 0; x < w; x++) {
