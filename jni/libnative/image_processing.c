@@ -41,7 +41,6 @@ ip_context_t* ip_create(int stride, int w, int h) {
         ip_destroy(context);
         context = null;
     }
-    trace("ip_create %p", context);
     return context;
 }
 

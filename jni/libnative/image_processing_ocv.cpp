@@ -5,6 +5,17 @@
 #include <opencv2/opencv.hpp>
 #pragma pop_macro("trace")
 
+
+static inline int distance_squared(cv::Point& pt0, cv::Point& pt1) {
+    return (pt0.x - pt1.x) * (pt0.x - pt1.x) + (pt0.y - pt1.y) * (pt0.y - pt1.y);
+}
+
+static inline bool is_square(std::vector<cv::Point> &si) {
+    assert(si.size() == 4);
+    return distance_squared(si[0], si[1]) <= 1 && distance_squared(si[1], si[2]) <= 1 &&
+           distance_squared(si[2], si[3]) <= 1 && distance_squared(si[3], si[0]) <= 1;
+}
+
 extern "C" bool ip_find_blobs(ip_context_t* context, void* input) {
 //  timestamp("ip_find_blobs");
     int64_t start_time = cputime();
@@ -55,39 +66,60 @@ extern "C" bool ip_find_blobs(ip_context_t* context, void* input) {
         std::vector<cv::Point> &si = contours[i];
         const int n = (int)si.size();
         ip_blob_t &blob = context->blobs[i];
-        blob.segments_start = ix;
-        blob.number_of_segments = n;
-        for (int j = 0; j < n; j++) {
-            const cv::Point &pt = si[j];
-//          trace("[%d][%d] x=%d y=%d", i, j, pt.x, pt.y);
-            context->segments[ix].x = nz.left + pt.x;
-            context->segments[ix].y = nz.top  + pt.y;
-            ix++;
-        }
-        const cv::Rect br = cv::boundingRect(si);
-        blob.bounding_rect.left = nz.left + br.x;
-        blob.bounding_rect.top  = nz.top  + br.y;
-        blob.bounding_rect.right  = blob.bounding_rect.left + br.width;
-        blob.bounding_rect.bottom = blob.bounding_rect.top  + br.height;
-        blob.arc_length = cv::arcLength(si, true); /* true means all non-zeros == 1 */
-        const cv::Moments mu = cv::moments(si, true);
-        blob.area = mu.m00; /* because openCV returns 0 with 1 pixel narrow blobs */
-/*      ???
-        if ((int)blob.area == 0 && (br.width < 2 || br.height < 2)) {
-            blob.area = br.width * br.height; // 1 pixel tall or 1 pixel wide bounding rectangle
+        if (n == 1) { // special case - single pixel segment
+            const cv::Point &pt = si[0];
+            blob.segments_start = -1; // no need to keep segments .center_* defines all
+            blob.number_of_segments = 0;
+            blob.center_x = nz.left + pt.x;
+            blob.center_y = nz.top  + pt.y;
+            blob.bounding_rect.left = blob.center_x;
+            blob.bounding_rect.top  = blob.center_y;
+            blob.bounding_rect.right  = blob.bounding_rect.left + 1;
+            blob.bounding_rect.bottom = blob.bounding_rect.top  + 1;
+            blob.area = 1;
+            blob.arc_length = 1;
+            blob.roundness = 0;
+        } else if (n == 4 && is_square(si)) { // special case - 2x2 square
+            const cv::Point &pt = si[0];
+            blob.segments_start = -1;  // no need to keep segments .bounding_rect defines all
+            blob.number_of_segments = 0;
+            blob.center_x = nz.left + pt.x + 0.5f;
+            blob.center_y = nz.top  + pt.y + 0.5f;
+            blob.bounding_rect.left = nz.left + pt.x;
+            blob.bounding_rect.top  = nz.top  + pt.y;
+            blob.bounding_rect.right  = blob.bounding_rect.left + 2;
+            blob.bounding_rect.bottom = blob.bounding_rect.top  + 2;
+            blob.area = 4;
+            blob.arc_length = 4;
+            blob.roundness = 0;
         } else {
-            blob.area += blob.arc_length;
+            blob.segments_start = ix;
+            blob.number_of_segments = n;
+            for (int j = 0; j < n; j++) {
+                const cv::Point &pt = si[j];
+//              trace("[%d][%d] x=%d y=%d", i, j, pt.x, pt.y);
+                context->segments[ix].x = nz.left + pt.x;
+                context->segments[ix].y = nz.top  + pt.y;
+                ix++;
+            }
+            const cv::Rect br = cv::boundingRect(si);
+            blob.bounding_rect.left = nz.left + br.x;
+            blob.bounding_rect.top  = nz.top  + br.y;
+            blob.bounding_rect.right  = blob.bounding_rect.left + br.width;
+            blob.bounding_rect.bottom = blob.bounding_rect.top  + br.height;
+            blob.arc_length = cv::arcLength(si, true); /* true means all non-zeros == 1 */
+            const cv::Moments mu = cv::moments(si, true);
+            blob.area = mu.m00; /* because openCV returns 0 with 1 pixel narrow blobs */
+            if (mu.m00 > 0) {
+                blob.center_x = nz.left + mu.m10 / mu.m00;
+                blob.center_y = nz.top  + mu.m01 / mu.m00;
+            } else {
+                blob.center_x = blob.bounding_rect.left + br.width / 2;
+                blob.center_y = blob.bounding_rect.top  + br.height / 2;
+            }
+            // http://gis.stackexchange.com/questions/85812/easily-calculate-roundness-compactness-of-a-polygon
+            blob.roundness = blob.arc_length > 0 ? (4.0 * M_PI * blob.area) / (blob.arc_length * blob.arc_length) : 0;
         }
-*/
-        if (mu.m00 > 0) {
-            blob.center_x = nz.left + mu.m10 / mu.m00;
-            blob.center_y = nz.top  + mu.m01 / mu.m00;
-        } else {
-            blob.center_x = blob.bounding_rect.left + br.width / 2;
-            blob.center_y = blob.bounding_rect.top  + br.height / 2;
-        }
-        // http://gis.stackexchange.com/questions/85812/easily-calculate-roundness-compactness-of-a-polygon
-        blob.roundness = blob.arc_length > 0 ? (4.0 * M_PI * blob.area) / (blob.arc_length * blob.arc_length) : 0;
 /*
         trace("[%d].contours=%d arc_length=%.3f moments area=%.3f center=%d,%d roundness=%.3f",
                i, n, blob.arc_length, blob.area, (int)blob.center_x, (int)blob.center_y, blob.roundness);
@@ -101,4 +133,5 @@ extern "C" bool ip_find_blobs(ip_context_t* context, void* input) {
 //  timestamp("ip_find_blobs");
     return true;
 }
+
 

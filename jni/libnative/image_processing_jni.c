@@ -3,10 +3,7 @@
 #include "image_processing.h"
 
 jlong Java_jni_ImageProcessing_create(JNIEnv* env, jobject that, jint stride, jint w, jint h) {
-    void* a = ip_create(stride, w, h);
-    jlong r = p2ll(a);
-    trace("%p 0x%016llX", a, r);
-    return r;
+    return p2ll(ip_create(stride, w, h));
 }
 
 static jfieldID numberOfSegments;
@@ -20,20 +17,6 @@ static jfieldID left;
 static jfieldID top;
 static jfieldID right;
 static jfieldID bottom;
-
-/*
-        int   numberOfSegments
-        int   segmentsStart
-        float area
-        float arcLength
-        float roundness
-        float centerX
-        float centerY
-        int   left
-        int   top
-        int   right
-        int   bottom
-*/
 
 static void bind_blob_fields(JNIEnv* env, jobject blob) {
     jclass cls = (*env)->GetObjectClass(env, blob);

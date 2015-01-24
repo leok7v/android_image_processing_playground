@@ -12,6 +12,7 @@ public class MainView extends ViewGroup implements TopView {
 
     private boolean attached;
     private BitmapView[] bitmapViews = new BitmapView[4];
+    private StatsView stats;
     private long outputThreshold;
     private long outputDilate;
     private static final int PADDING = 8, GAP_BETWEEN = 16;
@@ -56,7 +57,8 @@ public class MainView extends ViewGroup implements TopView {
                 ip.getBlob(i, blobs[i]);
             }
             AugmentedView av = (AugmentedView)bitmapViews[3];
-            av.update(nb, blobs, np, points, ip.thresholdTime(), ip.dilateTime(), ip.findBlobsTime());
+            av.update(nb, blobs, np, points);
+            stats.update(nb, blobs, np, ip.thresholdTime(), ip.dilateTime(), ip.findBlobsTime());
         }
     }
 
@@ -88,6 +90,8 @@ public class MainView extends ViewGroup implements TopView {
             bitmapViews[i] = (i < bitmapViews.length - 1 ? new BitmapView(c) : new AugmentedView(c)).setSize(C.WIDTH, C.HEIGHT);
             addView(bitmapViews[i]);
         }
+        stats = new StatsView(c);
+        addView(stats);
     }
 
     public void onAttachedToWindow() {
@@ -113,6 +117,12 @@ public class MainView extends ViewGroup implements TopView {
                 k++;
             }
         }
+        // stats view over threshold view
+        int sw = bitmapViews[1].getMeasuredWidth();
+        int sh = bitmapViews[1].getMeasuredHeight();
+        int sx = bitmapViews[1].getLeft();
+        int sy = bitmapViews[1].getTop();
+        stats.layout(sx, sy, sx + sw, sy + sh);
     }
 
     protected void onMeasure(int wms, int hms) {
@@ -128,6 +138,7 @@ public class MainView extends ViewGroup implements TopView {
                 }
             }
         }
+        stats.measure(makeMeasureSpec(w, EXACTLY), makeMeasureSpec(h, EXACTLY));
         setMeasuredDimension(util.measure(getMode(wms), getSize(wms), w), util.measure(getMode(hms), getSize(hms), h));
     }
 
