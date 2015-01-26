@@ -17,9 +17,7 @@ public class AugmentedView extends BitmapView {
         setColor(Color.RED);
         setStyle(Paint.Style.STROKE);
         setStrokeJoin(Paint.Join.ROUND);
-        setStrokeWidth(3f);
-        setTypeface(Typeface.MONOSPACE);
-        setTextSize(20f);
+        setStrokeWidth(2f);
     }};
     private static final Paint blue = new Paint(red) {{ setColor(Color.BLUE); }};
     private static final Paint coral1 = new Paint(red) {{ setColor(Colors.Coral1); }};

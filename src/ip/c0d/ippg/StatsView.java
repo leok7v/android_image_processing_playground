@@ -27,6 +27,10 @@ public class StatsView extends View {
         setTextSize(20f);
         setColor(Color.GREEN);
     }};
+    private static final Paint complimentary = new Paint(text) {{
+        setStrokeWidth(3f);
+        setColor(0xFF800080); // http://www.color-hex.com/color/008000
+    }};
 
     public StatsView(Context context) {
         super(context);
@@ -62,6 +66,22 @@ public class StatsView extends View {
                 label, ma.last, ma.min, ma.max, ma.simple, ma.cumulative);
     }
 
+    private void drawText(Canvas c, Paint paint, int dx, int dy) {
+        int h = Math.round(paint.getTextSize());
+        int x = 10 + dx;
+        int y = 20 + dy;
+        c.drawText("(millisecs) last [min   ..   max]    avg    cma", x,  y += h, paint);
+        c.drawText(formatF("threshold", thresholdAverage), x,  y += h, paint);
+        c.drawText(formatF("dilate   ", dilateAverage),    x,  y += h, paint);
+        c.drawText(formatF("find blob", findBlobsAverage), x,  y += h, paint);
+        c.drawText(formatF("total    ", totalAverage),     x,  y += h, paint);
+        y += 10;
+        c.drawText(formatI("#blobs  ", nbAverage), x, y += h, paint);
+        c.drawText(formatI("#points ", npAverage), x, y += h, paint);
+        c.drawText(formatI("#pt/blob", npPerBlobAverage), x, y + h, paint);
+    }
+
+
     protected void onDraw(Canvas c) {
         thresholdAverage.minmax();
         dilateAverage.minmax();
@@ -70,15 +90,12 @@ public class StatsView extends View {
         npAverage.minmax();
         nbAverage.minmax();
         npPerBlobAverage.minmax();
-        c.drawText("(millisecs) last [min   ..   max]    avg    cma", 10,  20, text);
-        c.drawText(formatF("threshold", thresholdAverage), 10,  40, text);
-        c.drawText(formatF("dilate   ", dilateAverage),    10,  60, text);
-        c.drawText(formatF("find blob", findBlobsAverage), 10,  80, text);
-        c.drawText(formatF("total    ", totalAverage),     10, 100, text);
-
-        c.drawText(formatI("#blobs  ", nbAverage), 10, 130, text);
-        c.drawText(formatI("#points ", npAverage), 10, 150, text);
-        c.drawText(formatI("#pt/blob", npPerBlobAverage), 10, 170, text);
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                drawText(c, complimentary, dx, dy);
+            }
+        }
+        drawText(c, text, 0, 0);
     }
 
 }
