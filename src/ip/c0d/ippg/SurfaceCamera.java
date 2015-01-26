@@ -13,6 +13,7 @@ import static misc.util.*;
 public class SurfaceCamera {
 
     private Camera camera;
+    private byte[] buffer;
     private int width;
     private int height;
     private int bpp;
@@ -77,6 +78,13 @@ public class SurfaceCamera {
         }
     }
 
+    private static int sizeOfUV(int width, int height) {
+        int strideY  = (width + 15) & ~0xF;
+        int strideUV = ((strideY / 2) + 15) & ~0xF;
+        return strideY * height + strideUV * height / 2 * 2;
+    }
+
+
     public boolean start() {
         if (camera == null) {
             return false; // this call has been posted on the queue... camera can be closed by now
@@ -91,16 +99,19 @@ public class SurfaceCamera {
         st = new SurfaceTexture(TEXTURE_ID);
         st.setDefaultBufferSize(width, height);
         setPreviewTexture(st);
-        camera.setPreviewCallback(new Camera.PreviewCallback() {
+        buffer = new byte[sizeOfUV(width, height)];
+        camera.addCallbackBuffer(buffer);
+        camera.setPreviewCallbackWithBuffer(new Camera.PreviewCallback() {
             public void onPreviewFrame(byte[] data, Camera camera) {
                 if (bpp == 4) {
-                    NV21toABGR(data, abgr, width, height); // 8 - 15 ms
+                    YV12toABGR(data, abgr, width, height); // 8 - 15 ms
                 } else {
                     memcpy(gray, data, 0, width * height); // only Y component of YUV
                 }
                 if (listener != null) {
                     listener.frame(bpp == 4 ? abgr : gray, width, height, bpp);
                 }
+                camera.addCallbackBuffer(buffer);
             }
         });
         camera.startPreview();
@@ -109,7 +120,7 @@ public class SurfaceCamera {
 
     public boolean stop() {
         if (camera != null && st != null) {
-            camera.setPreviewCallback(null);
+            camera.setPreviewCallbackWithBuffer(null);
             camera.stopPreview();
             st.detachFromGLContext();
             st = null;
@@ -158,14 +169,19 @@ public class SurfaceCamera {
                 }
             }
             int[] range = new int[2];
-            p.getPreviewFpsRange(range);
-            p.setPreviewFpsRange(C.FPS * 1000, 60 * 1000);
-            if (!setParams("preview FPS range ", p)) {
+            Camera.Parameters fpsRange = camera.getParameters();
+            fpsRange.getPreviewFpsRange(range);
+            fpsRange.setPreviewFpsRange(C.FPS * 1000, 60 * 1000);
+            if (!setParams("preview FPS range ", fpsRange)) {
                 Camera.Parameters fps = camera.getParameters();
                 fps.setPreviewFrameRate(C.FPS); // deprecated but still works
                 setParams("setPreviewFrameRate ", fps);
             }
         }
+        Camera.Parameters preview = camera.getParameters();
+        preview.setPreviewFormat(android.graphics.ImageFormat.YV12);
+        boolean yv12 = setParams("set preview format YV12", preview);
+        assertion(yv12, "yv12 suppose to be supported by all cameras" + yv12);
     }
 
     private static void choosePreviewSize(Camera.Parameters params, int w, int h) {
