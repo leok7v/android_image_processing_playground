@@ -9,8 +9,8 @@ import static misc.util.*;
 public class BitmapView extends TouchImageView {
 
     private Bitmap bitmap;
-    private int width;
-    private int height;
+    protected int width;
+    protected int height;
 
     public BitmapView(Context context) {
         super(context);

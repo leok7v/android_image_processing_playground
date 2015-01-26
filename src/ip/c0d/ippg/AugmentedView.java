@@ -4,11 +4,13 @@ import android.content.*;
 import android.graphics.*;
 import jni.*;
 
+import static misc.util.assertion;
+
 public class AugmentedView extends BitmapView {
 
     private int nb;
-    private float[] fp = new float[2];
     private ImageProcessing.Blob[] blobs = new ImageProcessing.Blob[1];
+    private Path[] path = new Path[blobs.length];
     private static final Matrix matrix = new Matrix() {{ postScale(-1, 1); postTranslate(640, 0); }};
     private static final float[] matrix_elements = new float[9];
 
@@ -30,13 +32,32 @@ public class AugmentedView extends BitmapView {
         this.nb = nb;
         if (this.blobs.length < nb) {
             this.blobs = new ImageProcessing.Blob[nb];
-        }
-        if (fp.length < np * 2) {
-            fp = new float[np * 2];
+            Path[] ps = new Path[nb];
+            System.arraycopy(path, 0, ps, 0, path.length);
+            path = ps;
         }
         System.arraycopy(bs, 0, this.blobs, 0, nb);
-        for (int i = 0; i < np * 2; i++) {
-            fp[i] = points[i];
+        for (int i = 0; i < nb; i++) {
+            Path p = path[i];
+            if (p == null) {
+                p = new Path();
+                path[i] = p;
+            }
+            p.reset();
+            ImageProcessing.Blob b = blobs[i];
+            if (b.numberOfSegments > 1) {
+                int ix = b.segmentsStart * 2;
+                p.moveTo(points[ix++], points[ix++]);
+                for (int j = 1; j < b.numberOfSegments; j++) {
+                    assertion(ix < np * 2);
+                    int x = points[ix++];
+                    int y = points[ix++];
+                    assertion(0 <= x && x < width);
+                    assertion(0 <= y && y < height);
+                    p.lineTo(x, y);
+                }
+                p.close();
+            }
         }
         invalidate();
     }
@@ -54,7 +75,7 @@ public class AugmentedView extends BitmapView {
         for (int i = 0; i < nb; i++) {
             ImageProcessing.Blob b = blobs[i];
             if (b.numberOfSegments > 1) {
-                c.drawLines(fp, b.segmentsStart * 2, b.numberOfSegments * 2, coral1);
+                c.drawPath(path[i], coral1);
                 c.drawRect(b.left, b.top, b.right, b.bottom, blue);
             }
             c.drawRect(b.centerX, b.centerY, b.centerX + 1, b.centerY + 1, red);

@@ -20,9 +20,24 @@ static const union { unsigned char bytes[4]; uint32_t value; } endianness = { { 
 #pragma GCC diagnostic warning "-Wunused-but-set-variable"
 #pragma GCC diagnostic warning "-Wunused-variable"
 
+void* ip_malloc16(size_t bytes) {
+    void* a = null;
+    int r = posix_memalign(&a, 16, bytes);
+    return r == 0 ? a : null;
+}
+
+void* ip_malloc16z(size_t bytes) {
+    void* a = null;
+    int r = posix_memalign(&a, 16, bytes);
+    if (r == 0 && a != null) {
+        memset(a, 0, bytes);
+    }
+    return r == 0 ? a : null;
+}
+
 ip_context_t* ip_create(int stride, int w, int h) {
     assertion(0 < w && 0 < h && w <= stride, "invalid value for w=%d h=%d or stride=%d", w, h, stride);
-    ip_context_t* context = (ip_context_t*)calloc(1, sizeof(ip_context_t));
+    ip_context_t* context = (ip_context_t*)ip_malloc16z(sizeof(ip_context_t));
     if (context != null) {
         assertion(sizeof(context->btt) == 256, "invalid size of btt=%d", sizeof(context->btt));
         context->stride = stride;
@@ -34,10 +49,16 @@ ip_context_t* ip_create(int stride, int w, int h) {
         context->non_zero.bottom = h;
         context->blobs_allocated_bytes = PRE_ALLOCATED_BLOBS * sizeof(ip_blob_t);
         context->segments_allocated_bytes = PRE_ALLOCATED_BLOBS * sizeof(ip_point_t);
-        context->blobs = malloc(context->blobs_allocated_bytes);
-        context->segments = malloc(context->segments_allocated_bytes);
+        context->blobs = ip_malloc16(context->blobs_allocated_bytes);
+        context->segments = ip_malloc16(context->segments_allocated_bytes);
+        context->non_zero_min_x = (int*)ip_malloc16(w / 2 * sizeof(context->non_zero_min_x[0]));
+        context->non_zero_max_x = (int*)ip_malloc16(w / 2 * sizeof(context->non_zero_max_x[0]));
+        context->non_zero_min_y = (int*)ip_malloc16(h / 2 * sizeof(context->non_zero_min_x[0]));
+        context->non_zero_max_y = (int*)ip_malloc16(h / 2 * sizeof(context->non_zero_max_y[0]));
     }
-    if (context->blobs == null || context->segments == null) {
+    if (context->blobs == null || context->segments == null ||
+        context->non_zero_min_x == null || context->non_zero_max_x == null ||
+        context->non_zero_min_y == null || context->non_zero_max_y == null) {
         ip_destroy(context);
         context = null;
     }
@@ -48,6 +69,11 @@ void ip_destroy(ip_context_t* context) {
     if (context != null) {
         free(context->blobs);
         free(context->segments);
+        free(context->non_zero_min_x);
+        free(context->non_zero_max_x);
+        free(context->non_zero_min_y);
+        free(context->non_zero_max_y);
+        memset(context, 0, sizeof(ip_context_t)); /* safety */
         free(context);
     }
 }
@@ -108,6 +134,7 @@ static void check(byte* input, int stride, int w, int h, byte* output, byte* ver
 }
 
 #undef COMPARE_RESULTS
+//#define COMPARE_RESULTS
 
 void ip_threshold(ip_context_t* context, void* input, unsigned char threshold, unsigned char set, void* output) {
     int64_t start_time = cputime();
@@ -134,24 +161,44 @@ void ip_threshold(ip_context_t* context, void* input, unsigned char threshold, u
     threshold_x1(context, input, threshold, set, output1);
     timestamp("x1");
     ip_rect_t r1 = context->non_zero;
+    int min_x_1[context->non_zero_x_ranges];
+    int min_y_1[context->non_zero_y_ranges];
+    memcpy(min_x_1, context->non_zero_min_x, sizeof(min_x_1));
+    memcpy(min_y_1, context->non_zero_min_y, sizeof(min_y_1));
 
     byte output2[w * h];
     timestamp("x4");
     threshold_x4(context, input, threshold, set, output2);
     timestamp("x4");
     ip_rect_t r2 = context->non_zero;
+    int min_x_2[context->non_zero_x_ranges];
+    int min_y_2[context->non_zero_y_ranges];
+    memcpy(min_x_2, context->non_zero_min_x, sizeof(min_x_2));
+    memcpy(min_y_2, context->non_zero_min_y, sizeof(min_y_2));
     check(input, stride, w, h, output2, output1);
     assert(memcmp(output1, output2, w * h) == 0);
     assert(memcmp(&r1, &r2, sizeof(r1)) == 0);
+    assert(sizeof(min_x_1) == sizeof(min_x_2));
+    assert(sizeof(min_y_1) == sizeof(min_y_2));
+    assert(memcmp(&min_x_1, &min_x_2, sizeof(min_x_1)) == 0);
+    assert(memcmp(&min_y_1, &min_y_2, sizeof(min_y_1)) == 0);
 
     byte output3[w * h];
     timestamp("neon");
     threshold_neon(context, input, threshold, set, output3);
     timestamp("neon");
     ip_rect_t r3 = context->non_zero;
+    int min_x_3[context->non_zero_x_ranges];
+    int min_y_3[context->non_zero_y_ranges];
+    memcpy(min_x_3, context->non_zero_min_x, sizeof(min_x_3));
+    memcpy(min_y_3, context->non_zero_min_y, sizeof(min_y_3));
     check(input, stride, w, h, output3, output1);
     assert(memcmp(output1, output3, w * h) == 0);
     assert(memcmp(&r1, &r3, sizeof(r1)) == 0);
+    assert(sizeof(min_x_1) == sizeof(min_x_3));
+    assert(sizeof(min_y_1) == sizeof(min_y_3));
+    assert(memcmp(&min_x_1, &min_x_3, sizeof(min_x_3)) == 0);
+    assert(memcmp(&min_y_1, &min_y_3, sizeof(min_y_3)) == 0);
 #endif
     context->threshold_time = (cputime() - start_time) / (double)NANOSECONDS_IN_SECOND;
 }
@@ -191,33 +238,73 @@ void ip_inflate_rect(ip_rect_t* r, int dx, int dy, int min_x, int min_y, int max
     r->bottom = min(r->bottom + dy, max_y);
 }
 
-static void non_zero_rectangle(ip_context_t* context, const uint32_t const* vnz, const void const* hnz, bool neon) {
+static int scan_for_non_zero_ranges(int* non_zero_min, int* non_zero_max, const int start, const int end,
+        const void const* nzv, const int size, const bool neon) {
+    int range = 0;
     if (neon) {
-        const byte const* hs = (const byte* const)hnz; // horizontal non zero bytes present
-        const int w = context->w;
+        const byte const* nz = (const byte const*)nzv;
+        int i = start;
+        while (i < end) {
+            assertion(nz[i] != 0, "expected nz[%d]=%d != 0", i, nz[i]);
+            assertion(range < size / 2, "expected range=%d < size=%d / 2", range, size);
+            non_zero_min[range] = i;
+            while (i < end && nz[i] != 0) { i++; }
+            non_zero_max[range] = i;
+            while (i < end && nz[i] == 0) { i++; }
+//          trace("non_zero_range[%d]=%d..%d", range, non_zero_min[range], non_zero_max[range]);
+            range++;
+        }
+    } else {
+        const uint32_t const* nz = (const uint32_t const*)nzv;
+        int i = start;
+        while (i < end) {
+            assertion(nz[i] != 0, "expected nz[%d]=%d != 0", i, nz[i]);
+            assertion(range < size / 2, "expected range=%d < size=%d / 2", range, size);
+            non_zero_min[range] = i;
+            while (i < end && nz[i] != 0) { i++; }
+            non_zero_max[range] = i;
+            while (i < end && nz[i] == 0) { i++; }
+//          trace("non_zero_range[%d]=%d..%d", range, non_zero_min[range], non_zero_max[range]);
+            range++;
+        }
+    }
+    return range;
+}
+
+static void non_zero_ranges(ip_context_t* context, const uint32_t const* vnz, const void const* hnz, bool neon) {
+    context->non_zero_x_ranges = scan_for_non_zero_ranges( context->non_zero_min_x, context->non_zero_max_x,
+            context->non_zero.left, context->non_zero.right, hnz, context->w, neon);
+    context->non_zero_y_ranges = scan_for_non_zero_ranges( context->non_zero_min_y, context->non_zero_max_y,
+            context->non_zero.top, context->non_zero.bottom, vnz, context->h, false);
+}
+
+static void non_zero_rectangle(ip_context_t* context, const uint32_t const* vnz, const void const* hnz, bool neon) {
+    const int w = context->w;
+    const int h = context->h;
+    if (neon) {
+        const byte const* nzh = (const byte* const)hnz; // non zero horizontal bytes
         int min_x = 0;
-        while (min_x < w && hs[min_x] == 0) { min_x++; }
+        while (min_x < w && nzh[min_x] == 0) { min_x++; }
         int max_x = w - 1;
-        while (max_x > 0 && hs[max_x] == 0) { max_x--; }
+        while (max_x > 0 && nzh[max_x] == 0) { max_x--; }
         context->non_zero.left = min_x;
         context->non_zero.right = max_x + 1;
     } else {
-        const int const* hs = hnz;
+        const int const* nzh = hnz;  // non zero horizontal bytes
         const int w = context->w;
         int min_x = 0;
-        while (min_x < w && hs[min_x] == 0) { min_x++; }
+        while (min_x < w && nzh[min_x] == 0) { min_x++; }
         int max_x = w - 1;
-        while (max_x > 0 && hs[max_x] == 0) { max_x--; }
+        while (max_x > 0 && nzh[max_x] == 0) { max_x--; }
         context->non_zero.left = min_x;
         context->non_zero.right = max_x + 1;
     }
     {
-        const uint32_t const* vs = vnz;  // vertical non zero bytes present
-        const int h = context->h;
+        const uint32_t const* nzv = vnz;  // vertical non zero ints
         int min_y = 0;
-        while (min_y < h && vs[min_y] == 0) { min_y++; }
+        while (min_y < h && nzv[min_y] == 0) { min_y++; }
         int max_y = h - 1;
-        while (max_y > 0 && vs[max_y] == 0) { max_y--; }
+        while (max_y > 0 && nzv[max_y] == 0) { max_y--; }
         context->non_zero.top = min_y;
         context->non_zero.bottom = max_y + 1;
     }
@@ -235,6 +322,7 @@ static void non_zero_rectangle(ip_context_t* context, const uint32_t const* vnz,
            context->non_zero.right - context->non_zero.left,
            context->non_zero.bottom - context->non_zero.top);
 */
+    non_zero_ranges(context, vnz, hnz, neon);
 }
 
 static void threshold_x1(ip_context_t* context, const byte const* input,

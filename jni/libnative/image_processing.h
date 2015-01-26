@@ -37,7 +37,13 @@ typedef struct ip_context_s {
     /* output of ip_threshold */
     int threshold; /* last threshold "btt" was initialized for */
     unsigned char btt[256]; /* byte threshold table */
-    ip_rect_t non_zero; /* minimum output region that has non-zero pixels */
+    ip_rect_t non_zero;    /* minimum output region that has non-zero pixels */
+    int non_zero_x_ranges; /* <= w / 2 */
+    int* non_zero_min_x;   /* [non_zero_x_ranges] */
+    int* non_zero_max_x;   /* [non_zero_x_ranges] */
+    int non_zero_y_ranges; /* <= h / 2 */
+    int* non_zero_min_y;   /* [non_zero_y_ranges] */
+    int* non_zero_max_y;   /* [non_zero_y_ranges] */
     /* output of ip_find_blobs */
     int number_of_blobs;
     int number_of_points;  /* sum of number of points in all segments */
@@ -78,11 +84,14 @@ void ip_threshold(ip_context_t* context, void* input, unsigned char threshold, u
 
 void ip_dilate(ip_context_t* context, void* input, int radius, unsigned char set_to, void* output);
 
-void ip_inflate_rect(ip_rect_t* r, int dx, int dy, int min_x, int min_y, int max_x, int max_y);
 
 bool ip_find_blobs(ip_context_t* context, void* input);
 
 void ip_destroy(ip_context_t* context);
+
+void* ip_malloc16(size_t bytes);   /* 16 bytes aligned */
+void* ip_malloc16z(size_t bytes);  /* 16 bytes aligned and zero-ed */
+void ip_inflate_rect(ip_rect_t* r, int dx, int dy, int min_x, int min_y, int max_x, int max_y);
 
 #ifdef __cplusplus
 }
