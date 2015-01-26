@@ -172,7 +172,7 @@ int64_t mem_allocations() {
     return total_allocations;
 }
 
-static malloc16(size_t bytes) {
+static void* malloc16(size_t bytes) {
     void* a = null;
     int r = posix_memalign(&a, 16, bytes);
     posix_info(r);
