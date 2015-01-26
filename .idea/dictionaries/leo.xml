@@ -588,6 +588,7 @@
       <w>vipp</w>
       <w>vorrq</w>
       <w>vpaddlq</w>
+      <w>vreinterpretq</w>
       <w>vsetq</w>
       <w>vsnprintf</w>
       <w>vsprintf</w>

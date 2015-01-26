@@ -69,9 +69,6 @@ static void dilate_r1_simple(const byte const* input, const int stride, const in
 static void dilate_unrolled(const byte const* input, const int stride, const int w, const int h,
                             const int radius, const byte set, int* md, byte* output);
 
-static void ip_inflate_rect(ip_rect_t* r, int dx, int dy, int min_x, int min_y, int max_x, int max_y);
-
-
 static void dump(const char* label, byte* img, int stride, int x, int y, int w, int h) {
     char buf[512];
     char num[16];
@@ -187,7 +184,7 @@ void ip_dilate(ip_context_t* context, void* input, int radius, unsigned char set
     context->dilate_time = (cputime() - start_time) / (double)NANOSECONDS_IN_SECOND;
 }
 
-static void ip_inflate_rect(ip_rect_t* r, int dx, int dy, int min_x, int min_y, int max_x, int max_y) {
+void ip_inflate_rect(ip_rect_t* r, int dx, int dy, int min_x, int min_y, int max_x, int max_y) {
     r->left = max(r->left - dx, min_x);
     r->top = max(r->top - dx, min_y);
     r->right = min(r->right + dy, max_x);
@@ -381,10 +378,7 @@ static void threshold_neon(ip_context_t* context, const byte const* input,
             vst1q_u8(d, r);
             vst1q_u8(hs, vorrq_u8(h, r));
             if (sum == 0) {
-                uint16x8_t  s1 = vpaddlq_u8(r);
-                uint32x4_t  s2 = vpaddlq_u16(s1);
-                uint64x2_t  s3 = vpaddlq_u32(s2);
-                sum = vgetq_lane_u64(s3, 0) | vgetq_lane_u64(s3, 1);
+                sum = sum || vgetq_lane_u64(vreinterpretq_u64_u8(r), 0) || vgetq_lane_u64(vreinterpretq_u64_u8(r), 1);
             }
             d += 16;
             s += 16;

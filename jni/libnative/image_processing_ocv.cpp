@@ -21,7 +21,8 @@ extern "C" bool ip_find_blobs(ip_context_t* context, void* input) {
     int64_t start_time = cputime();
     const int w = context->w;
     const int h = context->h;
-    const ip_rect_t &nz = context->non_zero;
+    ip_rect_t nz = context->non_zero;
+    ip_inflate_rect(&nz, 1, 1, 0, 0, w, h);
     if (nz.left >= nz.right || nz.top >= nz.bottom) {
         context->number_of_blobs = 0;
         context->number_of_points = 0;

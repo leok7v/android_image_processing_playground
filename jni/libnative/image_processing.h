@@ -78,6 +78,8 @@ void ip_threshold(ip_context_t* context, void* input, unsigned char threshold, u
 
 void ip_dilate(ip_context_t* context, void* input, int radius, unsigned char set_to, void* output);
 
+void ip_inflate_rect(ip_rect_t* r, int dx, int dy, int min_x, int min_y, int max_x, int max_y);
+
 bool ip_find_blobs(ip_context_t* context, void* input);
 
 void ip_destroy(ip_context_t* context);
