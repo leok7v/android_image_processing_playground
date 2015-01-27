@@ -1,5 +1,9 @@
 gen/*
+
 lib/*
+
 out/*
-.idea/workspace.xml
+
 .idea/misc.xml
+
+.idea/workspace.xml
