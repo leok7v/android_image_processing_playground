@@ -34,7 +34,7 @@ public class MainView extends ViewGroup implements TopView {
         if (attached) {
             bitmapViews[0].update(buffer, w, h, bpp);
             memset(outputThreshold, 0, C.WIDTH * C.HEIGHT);
-            ip.threshold(buffer, 200, 255, outputThreshold);
+            ip.threshold(buffer, 166, 255, outputThreshold);
             bitmapViews[1].update(outputThreshold, w, h, bpp);
             memset(outputDilate, 0, C.WIDTH * C.HEIGHT);
             ip.dilate(outputThreshold, 1, 255, outputDilate);
